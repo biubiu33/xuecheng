@@ -17,5 +17,14 @@
     <sql id="Base_Column_List">
         id, name, label, parentid, is_show, orderby, is_leaf
     </sql>
+    
+    <select id="selectTreeNodes" parameterType="String" resultType="com.xuecheng.content.model.dto.CourseCategoryTreeDto">
+        WITH recursive t1 as(
+            select * from course_category where id = #{id}
+            UNION ALL
+            select t2.* from course_category t2 join t1 where t1.id = t2.parentid
+        )
+        select * from t1
+    </select>
 
 </mapper>
