@@ -44,7 +44,7 @@ public class CourseBaseInfoController {
     }
 
     @ApiOperation("根据课程id查询接口")
-    @PostMapping("/course/{courseId}")
+    @GetMapping("/course/{courseId}")
     public CourseBaseInfoDto getCourseBaseById(@PathVariable Long courseId){
         CourseBaseInfoDto courseBaseInfoDto = courseBaseInfoService.getCourseBaseInfo(courseId);
         return courseBaseInfoDto;

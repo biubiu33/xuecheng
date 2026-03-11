@@ -184,7 +184,7 @@ public class CourseBaseInfoServiceImpl  implements CourseBaseInfoService {
     @Override
     public CourseBaseInfoDto modifyCourseBase(Long companyId, EditCourseDto editCourseDto) {
         // 课程id
-        Long courseId = editCourseDto.getCourseId();
+        Long courseId = editCourseDto.getId();
         CourseBase courseBase = courseBaseMapper.selectById(courseId);
         if(courseBase == null){
             XueChengPlusException.cast("课程不存在");
@@ -199,6 +199,17 @@ public class CourseBaseInfoServiceImpl  implements CourseBaseInfoService {
 
         int update = courseBaseMapper.updateById(courseBase);
         if(update<=0) XueChengPlusException.cast("修改课程失败");
+
+        // 修改课程营销信息
+        CourseMarket courseMarket = courseMarketMapper.selectById(courseId);
+        if(courseMarket == null){
+            XueChengPlusException.cast("课程营销不存在");
+        }
+        BeanUtils.copyProperties(editCourseDto,courseMarket);
+        courseMarket.setId(courseId);
+        int update1 = courseMarketMapper.updateById(courseMarket);
+        if(update1<=0) XueChengPlusException.cast("修改课程营销失败");
+
         CourseBaseInfoDto courseBaseInfoDto = getCourseBaseInfo(courseId);
         return courseBaseInfoDto;
     }
