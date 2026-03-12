@@ -49,6 +49,9 @@ public class MediaFileServiceImpl implements MediaFileService {
     @Autowired
     MinioClient minioClient;
 
+    @Autowired
+    MediaFileService currentProxy;
+
     @Value("${minio.bucket.files}")
     private String bucket_mediafiles;
 
@@ -74,7 +77,6 @@ public class MediaFileServiceImpl implements MediaFileService {
 
     }
 
-    @Transactional
     @Override
     public UploadFileResultDto uploadFile(Long companyId, UploadFileParamsDto uploadFileParamsDto, String filepath) {
         String filename = uploadFileParamsDto.getFilename();
@@ -87,7 +89,7 @@ public class MediaFileServiceImpl implements MediaFileService {
         XueChengPlusException.cast("上传文件失败");
         }
 
-        MediaFiles mediaFiles = addMediaFilesToDb(companyId, fileMd5, uploadFileParamsDto, bucket_mediafiles, objectName);
+        MediaFiles mediaFiles = currentProxy.addMediaFilesToDb(companyId, fileMd5, uploadFileParamsDto, bucket_mediafiles, objectName);
         if(mediaFiles == null){
             XueChengPlusException.cast("保存文件信息到数据库失败");
         }
