@@ -1,15 +1,15 @@
 package com.xuecheng.media;
 
-import io.minio.GetObjectArgs;
-import io.minio.GetObjectResponse;
-import io.minio.MinioClient;
-import io.minio.UploadObjectArgs;
+import io.minio.*;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Test;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class MinioTest {
     MinioClient minioClient =
@@ -45,5 +45,46 @@ public class MinioTest {
         if(local.equals(DigestUtils.md5Hex(new FileInputStream("D:\\WorkSpace\\DHU\\组会\\教资\\教资面试-历史\\1.pdf")))){
             System.out.println("下载成功");
         }
+    }
+
+    @Test
+    void testDelete() throws Exception {
+        minioClient.removeObject(
+                RemoveObjectArgs
+                        .builder()
+                        .bucket("mediafiles")
+                        .object("1.pdf")
+                        .build()
+        );
+    }
+
+    // 上传分块文件
+    @Test
+    void testUploadChunk() throws Exception {
+        for (int i = 0; i < 7; i++) {
+            minioClient.uploadObject(
+                    UploadObjectArgs.builder()
+                            .bucket("mediafiles")
+                            .object("chunk/"+i)
+                            .filename("D:\\WorkSpace\\DHU\\组会\\教资\\教资面试-历史\\chunk\\"+i)
+                            .build());
+            System.out.println("上传"+i+"成功");
+        }
+
+
+    }
+
+    // 合并文件
+    @Test
+    void testMerge() throws Exception {
+        List<ComposeSource> chunks = Stream.iterate(0, i -> i + 1).limit(7)
+                .map(i -> ComposeSource.builder().bucket("mediafiles").object("chunk/" + i).build()).collect(Collectors.toList());
+
+        minioClient.composeObject(ComposeObjectArgs.builder()
+                .bucket("mediafiles")
+                .object("merge1.pdf")
+                .sources(chunks)
+                .build()
+        );
     }
 }
