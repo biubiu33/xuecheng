@@ -10,13 +10,16 @@ import com.xuecheng.base.model.PageResult;
 import com.xuecheng.base.model.RestResponse;
 import com.xuecheng.media.config.MinioConfig;
 import com.xuecheng.media.mapper.MediaFilesMapper;
+import com.xuecheng.media.mapper.MediaProcessMapper;
 import com.xuecheng.media.model.dto.QueryMediaParamsDto;
 import com.xuecheng.media.model.dto.UploadFileParamsDto;
 import com.xuecheng.media.model.dto.UploadFileResultDto;
 import com.xuecheng.media.model.po.MediaFiles;
+import com.xuecheng.media.model.po.MediaProcess;
 import com.xuecheng.media.service.MediaFileService;
 import io.minio.*;
 import io.minio.errors.*;
+import io.minio.messages.DeleteError;
 import io.minio.messages.DeleteObject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -50,6 +53,9 @@ import java.util.stream.Stream;
 public class MediaFileServiceImpl implements MediaFileService {
     @Autowired
     MediaFilesMapper mediaFilesMapper;
+
+    @Autowired
+    MediaProcessMapper mediaProcessMapper;
 
     @Autowired
     MinioClient minioClient;
@@ -172,10 +178,29 @@ public class MediaFileServiceImpl implements MediaFileService {
                 XueChengPlusException.cast("保存文件信息失败");
             }
             log.debug("保存文件信息到数据库成功,{}",mediaFiles.toString());
+            addWaitingTask(mediaFiles);
+            return mediaFiles;
 
         }
         return mediaFiles;
 
+    }
+
+    private void addWaitingTask(MediaFiles mediaFiles){
+        //文件名称
+        String filename = mediaFiles.getFilename();
+        //文件扩展名
+        String exension = filename.substring(filename.lastIndexOf("."));
+        //文件mimeType
+        String mimeType = getMimeType(exension);
+        //如果是avi视频添加到视频待处理表
+        if(mimeType.equals("video/x-msvideo")){
+            MediaProcess mediaProcess = new MediaProcess();
+            BeanUtils.copyProperties(mediaFiles,mediaProcess);
+            mediaProcess.setStatus("1");//未处理
+            mediaProcess.setFailCount(0);//失败次数默认为0
+            mediaProcessMapper.insert(mediaProcess);
+        }
     }
 
     @Override
@@ -274,27 +299,51 @@ public class MediaFileServiceImpl implements MediaFileService {
             }
         }
         // 将文件信息入库
+        log.debug("开始入库");
         currentProxy.addMediaFilesToDb(companyId,fileMd5,uploadFileParamsDto,bucket_video,objectName);
         // 删除分块
+        log.debug("开始删除分块");
         clearChunkFiles(chunkFileFolderPath,chunkTotal);
         return RestResponse.success(true);
     }
     private void clearChunkFiles(String chunkFileFolderPath, int chunkTotal){
+//        try {
+//            for (int i = 0; i < chunkTotal; i++) {
+//                minioClient.removeObject(
+//                        RemoveObjectArgs
+//                                .builder()
+//                                .bucket(bucket_video)
+//                                .object(chunkFileFolderPath+i)
+//                                .build()
+//                );
+//            }
+//            log.info("分块文件清理完成，共删除{}个分块", chunkTotal);
+//        } catch (Exception e) {
+//            log.error("删除分块文件失败，bucket: {}, chunkFileFolderPath: {}, chunkTotal: {}, 错误：{}",
+//                    bucket_video, chunkFileFolderPath, chunkTotal, e.getMessage(), e);
+//            XueChengPlusException.cast("分块清除失败");
+//        }
+        // 发送单次请求，避免网络拥塞
         try {
-            for (int i = 0; i < chunkTotal; i++) {
-                minioClient.removeObject(
-                        RemoveObjectArgs
-                                .builder()
-                                .bucket(bucket_video)
-                                .object(chunkFileFolderPath+i)
-                                .build()
-                );
-            }
-            log.info("分块文件清理完成，共删除{}个分块", chunkTotal);
+            List<DeleteObject> deleteObjects = Stream.iterate(0, i -> ++i)
+                    .limit(chunkTotal)
+                    .map(i -> new DeleteObject(chunkFileFolderPath.concat(Integer.toString(i))))
+                    .collect(Collectors.toList());
+
+            RemoveObjectsArgs removeObjectsArgs = RemoveObjectsArgs.builder().bucket("video").objects(deleteObjects).build();
+            Iterable<Result<DeleteError>> results = minioClient.removeObjects(removeObjectsArgs);
+            results.forEach(r->{
+                DeleteError deleteError = null;
+                try {
+                    deleteError = r.get();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    log.error("清楚分块文件失败,objectname:{}",deleteError.objectName(),e);
+                }
+            });
         } catch (Exception e) {
-            log.error("删除分块文件失败，bucket: {}, chunkFileFolderPath: {}, chunkTotal: {}, 错误：{}",
-                    bucket_video, chunkFileFolderPath, chunkTotal, e.getMessage(), e);
-            XueChengPlusException.cast("分块清除失败");
+            e.printStackTrace();
+            log.error("清楚分块文件失败,chunkFileFolderPath:{}",chunkFileFolderPath,e);
         }
     }
     /**
@@ -303,6 +352,7 @@ public class MediaFileServiceImpl implements MediaFileService {
      * @param objectName 对象名称
      * @return 下载后的文件
      */
+    @Override
     public File downloadFileFromMinIO(String bucket,String objectName){
         //临时文件
         File minioFile = null;

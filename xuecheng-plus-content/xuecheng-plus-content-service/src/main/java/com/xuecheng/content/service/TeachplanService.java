@@ -1,7 +1,10 @@
 package com.xuecheng.content.service;
 
+import com.xuecheng.content.model.dto.BindTeachplanMediaDto;
+import com.xuecheng.content.model.dto.SaveTeachplanDto;
 import com.xuecheng.content.model.dto.TeachplanDto;
 import com.xuecheng.content.model.po.Teachplan;
+import com.xuecheng.content.model.po.TeachplanMedia;
 
 import java.util.List;
 
@@ -12,5 +15,7 @@ public interface TeachplanService {
 
     void orderByTeachplan(String moveType, Long teachplanId);
 
-    void saveTeachplan(Teachplan teachplan);
+    void saveTeachplan(SaveTeachplanDto teachplan);
+
+    TeachplanMedia associationMedia(BindTeachplanMediaDto bindTeachplanMediaDto);
 }

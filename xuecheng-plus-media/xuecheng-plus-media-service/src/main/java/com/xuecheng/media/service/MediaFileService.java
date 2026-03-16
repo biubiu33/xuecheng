@@ -10,6 +10,7 @@ import com.xuecheng.media.model.po.MediaFiles;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.util.List;
 
 /**
@@ -62,4 +63,8 @@ public interface MediaFileService {
     RestResponse uploadChunk(String fileMd5, int chunk, String localChunkFilePath);
 
     RestResponse mergeChunks(Long companyId, String fileMd5, int chunkTotal, UploadFileParamsDto uploadFileParamsDto);
+
+    File downloadFileFromMinIO(String bucket, String objectName);
+
+    boolean addMediaFilesToMinIO(String localFilePath,String mimeType,String bucket, String objectName);
 }
